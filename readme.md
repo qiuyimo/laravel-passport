@@ -432,3 +432,68 @@ Route::get('/callback', function (Request $request) {
 ![image-20180822232100190](assets/image-20180822232100190.png)
 
 至此, 已经拿到了访问令牌和刷新令牌. 
+
+
+
+### 遇到的问题
+
+我的开发环境使用的是 `docker`, 基于 `laradock` 构建的. 
+
+2 个项目之间, 使用 php 的 `curl` 和 `GuzzleHttp` 不能互通, 例如:
+
+这个项目是 `laravel-passport.com`, 客户端是 `laravel-passport-client.com`, 是不能互通的. 
+
+> 原因是, php 的容器是 `php-fpm`, 在 php 中 `curl` 或者 `GuzzleHttp`, 使用的是 php-fpm 的容器, 而在 php-fpm 容器中, hosts 中并没有绑定 ip, 所以, 我们只要查看 nginx 容器的 ip 地址, 然后进入 php-fpm 容器中, 绑定 hosts 即可. 
+
+```shell
+➜  laravel-passport-client git:(master) ✗ docker ps
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS              PORTS                                      NAMES
+e49bfe00fbad        laradock_php-fpm      "docker-php-entrypoi…"   13 days ago         Up 8 days           9000/tcp                                   laradock_php-fpm_1
+9c1dc48142a2        laradock_nginx        "nginx"                  2 weeks ago         Up 6 hours          0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp   laradock_nginx_1
+20f89b65bf99        laradock_phpmyadmin   "/run.sh supervisord…"   2 weeks ago         Up 8 days           9000/tcp, 0.0.0.0:8080->80/tcp             laradock_phpmyadmin_1
+5c9598078ab8        laradock_workspace    "/sbin/my_init"          2 weeks ago         Up 8 days           0.0.0.0:2222->22/tcp                       laradock_workspace_1
+197e1ce32004        laradock_redis        "docker-entrypoint.s…"   2 weeks ago         Up 8 days           0.0.0.0:6379->6379/tcp                     laradock_redis_1
+e703fb5b4314        laradock_mysql        "docker-entrypoint.s…"   2 weeks ago         Up 8 days           0.0.0.0:3306->3306/tcp                     laradock_mysql_1
+➜  laravel-passport-client git:(master) ✗ docker inspect 9c1dc48142a2
+[
+    {
+        "Id": "9c1dc48142a2de3cd6e7775c616490b3f8803d45eddbd82e24911fcd8eb5bb93",
+        "Created": "2018-08-07T03:23:36.415911088Z",
+        "Path": "nginx",
+        // 省略
+                "Networks": {
+                "laradock_backend": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "nginx",
+                        "9c1dc48142a2"
+                    ],
+                    "NetworkID": "ef1c308c2c714982a36b683dfb069c185abe07b5d1fcf3ffac2e8e9d444cf938",
+                    "EndpointID": "90ddd1e6342c77f425574af0ea64209f649925e35c256f2f3aa69c84081ba03f",
+                    "Gateway": "172.19.0.1",
+                    "IPAddress": "172.19.0.7",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+          // 省略
+```
+
+
+
+然后进入 php-fpm 容器.
+
+```shell
+➜  laradock git:(master) ✗ docker-compose exec php-fpm bash
+```
+
+
+
+添加 hosts
+
+```shell
+root@e49bfe00fbad:/var/www# echo '172.19.0.7 laravel-passport.com' >> /etc/hosts
+```
+
+
+
